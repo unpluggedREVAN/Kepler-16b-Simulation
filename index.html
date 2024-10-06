@@ -4,72 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Juego de Ecosistemas Interconectados</title>
-    <!-- Importar Leaflet CSS -->
+    <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
-    <style>
-        body, html { height: 100%; margin: 0; font-family: Arial, sans-serif; }
-        #map { height: 100%; }
-        .overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            width: 300px;
-            text-align: center;
-        }
-        .button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
 </head>
 <body>
+    <div id="map"></div>
 
-<div id="map"></div>
-<div class="overlay welcome-card">
-    <h2>Bienvenido al Juego</h2>
-    <p>Haz clic abajo para comenzar tu aventura en Brasil.</p>
-    <button class="button" onclick="startGame()">Iniciar Juego</button>
-</div>
-<div class="overlay campaign-info hidden">
-    <h2>Primera Campaña: Brasil</h2>
-    <p>Explora cómo las decisiones afectan la selva del Amazonas.</p>
-    <img src="https://via.placeholder.com/150" alt="Icono Campaña" style="width:100%;height:auto;">
-</div>
+    <!-- Pantalla de bienvenida -->
+    <div class="overlay welcome-card">
+        <h2>Bienvenido al Juego</h2>
+        <p>Explora las interacciones entre los ecosistemas y toma decisiones críticas en campañas alrededor del mundo.</p>
+        <button class="button" onclick="showCampaigns()">Iniciar Juego</button>
+    </div>
 
-<!-- Importar Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-<script>
-    var map = L.map('map').setView([0, 0], 1);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://carto.com/attributions">CartoDB</a> contributors',
-        maxZoom: 18
-    }).addTo(map);
+    <!-- Selección de campaña -->
+    <div class="overlay campaigns hidden">
+        <h2>Selecciona una campaña</h2>
+        <div class="campaign-option" onclick="goToCampaign('Brasil')">
+            <h3>Brasil - Amazonas</h3>
+            <p>Explora cómo las decisiones afectan la biodiversidad en la selva tropical.</p>
+        </div>
+        <div class="campaign-option" onclick="goToCampaign('China')">
+            <h3>China - Yangtze</h3>
+            <p>Descubre el impacto del cambio climático en las montañas del río Yangtze.</p>
+        </div>
+    </div>
 
-    function startGame() {
-        document.querySelector('.welcome-card').style.display = 'none';
-        map.flyTo([-14.235004, -51.92528], 5, {
-            animate: true,
-            duration: 2 // en segundos
-        });
-        setTimeout(function() {
-            document.querySelector('.campaign-info').style.display = 'block';
-        }, 2000); // Tiempo en milisegundos
-    }
-</script>
+    <!-- Información de la campaña y selección de dificultad -->
+    <div class="overlay campaign-info hidden">
+        <!-- Contenido dinámico de la campaña -->
+    </div>
 
+    <!-- Interfaz de juego simulada -->
+    <div class="game-ui hidden">
+        <h2>Interfaz de Juego</h2>
+        <p>Aquí se desarrollará la simulación y las interacciones del jugador.</p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="mapSetup.js"></script>
+    <script src="campaigns.js"></script>
 </body>
 </html>
