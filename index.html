@@ -4,8 +4,115 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Juego de Ecosistemas Interconectados</title>
-    <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <style>
+        body, html { height: 100%; margin: 0; font-family: 'Arial', sans-serif; }
+        #map { height: 100%; }
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 350px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .hidden { display: none; }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .campaigns {
+            text-align: left;
+            cursor: pointer;
+        }
+        .campaign-option {
+            background-color: rgba(255, 255, 255, 0.1);
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            transition: background-color 0.3s ease;
+        }
+        .campaign-option:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        h2, h3, p {
+            margin: 0;
+            margin-bottom: 10px;
+        }
+        .dropdown {
+            margin: 10px 0;
+            text-align: left;
+        }
+        select {
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        /* Paneles de información del juego */
+        .panel-box {
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            color: black;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            text-align: center;
+        }
+
+        .news-box {
+            top: 20px;
+            right: 20px;
+            width: 250px;
+        }
+
+        .year-box {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-150%);
+            width: 120px;
+        }
+
+        .difficulty-box {
+            top: 20px;
+            left: 50%;
+            transform: translateX(50%);
+            width: 120px;
+        }
+
+        .environment-points-box {
+            bottom: 160px;
+            left: 20px;
+            width: 160px;
+            background: rgba(0, 128, 0, 0.9);
+            color: white;
+        }
+
+        .environment-goal-box {
+            bottom: 40px;
+            left: 20px;
+            width: 160px;
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <div id="map"></div>
@@ -31,18 +138,126 @@
     </div>
 
     <!-- Información de la campaña y selección de dificultad -->
-    <div class="overlay campaign-info hidden">
-        <!-- Contenido dinámico de la campaña -->
-    </div>
-
-    <!-- Interfaz de juego simulada -->
-    <div class="game-ui hidden">
-        <h2>Interfaz de Juego</h2>
-        <p>Aquí se desarrollará la simulación y las interacciones del jugador.</p>
-    </div>
+    <div class="overlay campaign-info hidden"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="mapSetup.js"></script>
-    <script src="campaigns.js"></script>
+    <script>
+        // Mapa
+        var southWest = L.latLng(-85, -180);  // Límite sur-oeste
+        var northEast = L.latLng(85, 180);    // Límite norte-este
+        var bounds = L.latLngBounds(southWest, northEast);
+
+        var map = L.map('map', {
+            maxBounds: bounds,
+            maxBoundsViscosity: 1.0,
+            worldCopyJump: false,
+            noWrap: true,
+            minZoom: 2,
+            zoomControl: true
+        }).setView([0, 0], 2);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/attributions">CartoDB</a> contributors',
+            maxZoom: 18,
+            minZoom: 2
+        }).addTo(map);
+
+        let selectedDifficulty = '';
+
+        // Mostrar campañas
+        function showCampaigns() {
+            const welcomeCard = document.querySelector('.welcome-card');
+            const campaigns = document.querySelector('.campaigns');
+
+            if (welcomeCard) welcomeCard.classList.add('hidden');
+            if (campaigns) campaigns.classList.remove('hidden');
+        }
+
+        // Maneja la selección de campaña
+        function goToCampaign(country) {
+            let coords = {
+                'Brasil': [-14.235004, -51.92528],
+                'China': [35.861660, 104.195397]
+            };
+
+            document.querySelector('.campaigns').style.display = 'none';
+            map.flyTo(coords[country], 5, { animate: true, duration: 2 });
+
+            setTimeout(function () {
+                document.querySelector('.campaign-info').innerHTML = `
+                    <h2>Campaña: ${country}</h2>
+                    <p>${country === 'Brasil' ? 'Explora cómo las decisiones afectan la selva del Amazonas.' : 'Descubre el impacto del cambio climático en las montañas del río Yangtze.'}</p>
+                    <div class="dropdown">
+                        <label for="difficulty">Selecciona la dificultad:</label>
+                        <select id="difficulty" onchange="setDifficulty(this.value)">
+                            <option value="">--Elige la dificultad--</option>
+                            <option value="Medio">Medio</option>
+                            <option value="Difícil">Difícil</option>
+                        </select>
+                    </div>
+                    <button class="button" id="startButton" style="display: none;" onclick="startCampaign('${country}')">Comenzar ${country}</button>
+                `;
+                document.querySelector('.campaign-info').style.display = 'block';
+            }, 2000);
+        }
+
+        // Guardar la dificultad seleccionada
+        function setDifficulty(difficulty) {
+            selectedDifficulty = difficulty;
+            document.getElementById('startButton').style.display = difficulty ? 'block' : 'none';
+        }
+
+        // Iniciar la campaña
+        function startCampaign(country) {
+            if (selectedDifficulty === 'Medio') {
+                window.location.href = 'caso1.html';  // Redirigir a caso1.html
+            } else if (selectedDifficulty === 'Difícil') {
+                window.location.href = 'caso2.html';  // Redirigir a caso2.html
+
+            document.querySelector('.campaign-info').style.display = 'none';
+
+            createPanel('news-box', 'Noticias:', 'Estamos destruyendo la Tierra, ¡hay que salvarla!', 'top', '20px', 'right', '20px');
+            createPanel('environment-points-box', 'Puntos ambientales:', '100', 'bottom', '160px', 'left', '20px');
+            createPanel('environment-goal-box', 'Objetivo:', '200', 'bottom', '40px', 'left', '20px');
+            createPanel('year-box', 'Año:', '2024', 'top', '20px', 'left', '50%', 'transform: translateX(-150%)');
+            createPanel('difficulty-box', 'Dificultad:', selectedDifficulty, 'top', '20px', 'left', '50%', 'transform: translateX(50%)');
+
+            updateEnvironmentalPoints(150);
+            updateYear(2025);
+        }}
+
+
+        // Crear paneles dinámicamente
+        function createPanel(id, title, content, verticalPosition, verticalValue, horizontalPosition, horizontalValue, additionalStyle = '') {
+            if (!document.getElementById(id)) {
+                const panel = document.createElement('div');
+                panel.id = id;
+                panel.style.position = 'absolute';
+                panel.style[verticalPosition] = verticalValue;
+                panel.style[horizontalPosition] = horizontalValue;
+                panel.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                panel.style.padding = '10px';
+                panel.style.borderRadius = '8px';
+                panel.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+                panel.innerHTML = `
+                    <h3>${title}</h3>
+                    <p id="${id}-content">${content}</p>
+                `;
+                document.body.appendChild(panel);
+            } else {
+                document.getElementById(id).style.display = 'block';
+            }
+        }
+
+        // Actualizar puntos ambientales
+        function updateEnvironmentalPoints(points) {
+            document.getElementById('environment-points-box-content').textContent = points;
+        }
+
+        // Actualizar el año
+        function updateYear(year) {
+            document.getElementById('year-box-content').textContent = year;
+        }
+    </script>
 </body>
 </html>

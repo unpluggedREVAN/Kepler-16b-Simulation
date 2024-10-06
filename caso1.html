@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Ecosistemas Interconectados</title>
+    <!-- Importar Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <style>
+        body, html { height: 100%; margin: 0; font-family: Arial, sans-serif; }
+        #map { height: 100%; width: 100%; }
+
+        /* Paneles Superpuestos (estilo y posicionamiento) */
+        .overlay {
+            position: absolute;
+            top: 35%; /* Ajuste la tarjeta de decisiones un poco más abajo */
+            right: 10%;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 300px;
+            text-align: center;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .hidden { display: none; }
+
+        /* Mejoras en el diseño de los cuadros superpuestos */
+        .panel-box {
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            color: black;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            text-align: center;
+        }
+
+        /* Posiciones ajustadas */
+        .info-box { top: 20px; right: 20px; width: 250px; height: 150px; } /* Sección de información más pequeña */
+        .year-box { top: 20px; left: 50%; transform: translateX(-150%); width: 120px; }
+        .difficulty-box { top: 20px; left: 50%; transform: translateX(50%); width: 120px; }
+        .environment-points-box { bottom: 160px; left: 20px; width: 160px; background: rgba(0, 128, 0, 0.9); color: white; }
+        .environment-goal-box { bottom: 40px; left: 20px; width: 160px; background: rgba(255, 0, 0, 0.9); color: white; }
+
+        /* Animación para las líneas de conexión */
+        @keyframes drawLine {
+            from {
+                stroke-dasharray: 0, 1000;
+            }
+            to {
+                stroke-dasharray: 1000, 0;
+            }
+        }
+        .line {
+            stroke: yellow;
+            stroke-width: 5;
+            stroke-dasharray: 0, 1000;
+            animation: drawLine 2s ease forwards;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Cuadro de bienvenida -->
+<div class="overlay welcome-card">
+    <h2>Bienvenido al Juego</h2>
+    <p>Haz clic abajo para comenzar tu aventura.</p>
+    <button class="button" onclick="startGame()">Iniciar Juego</button>
+</div>
+
+<!-- Cuadro de decisiones -->
+<div class="overlay campaign-info hidden">
+    <h2 id="decision-title">Primera Decisión</h2>
+    <p id="decision-text">¿Qué acción tomarás en relación con el consumo de energía?</p>
+    <button class="button" onclick="decision1()">Opción 1</button>
+    <button class="button" onclick="decision2()">Opción 2</button>
+</div>
+
+<!-- Cuadro de resultado tras la decisión -->
+<div class="overlay result-info hidden">
+    <h2>Resultado</h2>
+    <p id="result-text">Aquí aparecerá el resultado de tu decisión.</p>
+    <button class="button" onclick="nextDecision()">Aceptar</button>
+</div>
+
+<!-- Cuadro de "Información" -->
+<div class="panel-box info-box">
+    <h3>Información:</h3>
+    <p id="info">Aquí aparecerá información relevante que te ayudará a tomar una mejor decisión.</p> <!-- Cambiado el contexto para pistas -->
+</div>
+
+<!-- Cuadro de "Puntos ambientales" -->
+<div class="panel-box environment-points-box">
+    <h3>Puntos ambientales:</h3>
+    <p id="points">300</p> <!-- Comenzar con puntos más altos -->
+</div>
+
+<!-- Cuadro de "Límite de puntos" -->
+<div class="panel-box environment-goal-box">
+    <h3>Límite:</h3>
+    <p>200</p> <!-- Límite que no se debe bajar -->
+</div>
+
+<!-- Cuadro de "Año" -->
+<div class="panel-box year-box">
+    <h3>Año:</h3>
+    <p id="year">2024</p> <!-- Aumentar de 3 en 3 años por decisión -->
+</div>
+
+<!-- Cuadro de "Dificultad" -->
+<div class="panel-box difficulty-box">
+    <h3>Dificultad:</h3>
+    <p>Alta</p>
+</div>
+
+<!-- Cuadro final de resumen -->
+<div class="overlay final-verdict hidden">
+    <h2>Resumen Final</h2>
+    <p id="final-summary"></p>
+    <button class="button" onclick="restartGame()">Volver al Inicio</button>
+</div>
+
+<!-- Importar Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+    var currentStep = 1;
+    var totalSteps = 3;
+    var environmentalPoints = 300; // Comenzar con más puntos que el límite
+    var year = 2024;
+    var nextCoords = null; // Coordenadas para el próximo flyTo
+    var decisionCoords = [
+        [-14.235004, -51.92528],  // Brasil
+        [51.5074, -0.1278],        // Londres
+        [-3.4653, -62.2159]        // Amazonas
+    ];
+
+    // Definir los límites del mapa para el mundo completo
+    var southWest = L.latLng(-85, -180);
+    var northEast = L.latLng(85, 180);
+    var worldBounds = L.latLngBounds(southWest, northEast);
+
+    var map = L.map('map', {
+        maxBounds: worldBounds, 
+        maxBoundsViscosity: 1.0,
+        minZoom: 2,
+        maxZoom: 18
+    }).setView([0, 0], 3);
+
+    // Capa de mapa oscuro
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://carto.com/attributions">CartoDB</a> contributors',
+        maxZoom: 18
+    }).addTo(map);
+
+    // Iniciar juego y mostrar primera decisión
+    function startGame() {
+        flyToLocation(decisionCoords[0], 5);  // Coordenadas de Brasil
+        setTimeout(function() {
+            document.querySelector('.welcome-card').style.display = 'none';
+            document.querySelector('.campaign-info').style.display = 'block';
+        }, 2000);
+    }
+
+    // Generar marcadores o áreas en el mapa basados en la decisión
+    function generateMapImpact(coords, color, message) {
+        var circle = L.circle(coords, {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.5,
+            radius: 500000
+        }).addTo(map);
+
+        L.marker(coords).addTo(map).bindPopup(message).openPopup();
+    }
+
+    // Actualizar la información de contexto para ayudar a la toma de decisiones
+    function updateInfo(text) {
+        document.getElementById('info').textContent = text;
+    }
+
+    // Decisión 1
+    function decision1() {
+        if (currentStep === 1) {
+            environmentalPoints -= 30; // Ajustar los puntos
+            showResult("Has decidido implementar un sistema de energía renovable en São Paulo, pero el costo inicial es elevado.");
+            generateMapImpact([-23.5505, -46.6333], 'green', "Energía renovable implementada. Se estima una reducción de emisiones de CO2 del 20%.");
+            nextCoords = decisionCoords[1]; // Londres (Reciclaje)
+            updateInfo("Considera el impacto a largo plazo de implementar energía renovable, aunque el costo inicial sea alto."); // Información de contexto
+        } else if (currentStep === 2) {
+            environmentalPoints -= 40;
+            showResult("Como alcalde de Londres, implementas un plan de reciclaje avanzado, pero enfrenta oposición.");
+            generateMapImpact([51.5074, -0.1278], 'yellow', "El reciclaje en Londres creció un 15%, pero la resistencia ha aumentado los costos en un 8%.");
+            nextCoords = decisionCoords[2]; // Amazonas (Deforestación)
+            updateInfo("El reciclaje ayuda a reducir desechos, pero no siempre es bien recibido por la comunidad debido a sus costos.");
+        } else if (currentStep === 3) {
+            environmentalPoints += 20;
+            showResult("Has decidido conservar áreas forestales en el Amazonas, protegiendo la biodiversidad.");
+            generateMapImpact([-3.4653, -62.2159], 'green', "Conservación en el Amazonas: 300,000 hectáreas de bosque protegidas.");
+            updateInfo("La conservación del Amazonas no solo protege la biodiversidad, sino que ayuda a combatir el cambio climático.");
+        }
+        updateEnvironmentalPoints();
+        updateYear();  // Avanzar 3 años tras cada decisión
+    }
+
+    // Decisión 2
+    function decision2() {
+        if (currentStep === 1) {
+            environmentalPoints -= 50;
+            showResult("Decidiste seguir usando combustibles fósiles en São Paulo. Las emisiones aumentan.");
+            generateMapImpact([-23.5505, -46.6333], 'red', "Las emisiones de CO2 han aumentado un 12% en São Paulo.");
+            nextCoords = decisionCoords[1]; // Londres (Reciclaje)
+            updateInfo("Aunque los combustibles fósiles son una opción económica, aumentan las emisiones y dañan el ambiente a largo plazo.");
+        } else if (currentStep === 2) {
+            environmentalPoints -= 60;
+            showResult("Decides no implementar reciclaje en Londres. Esto aumenta los desechos plásticos.");
+            generateMapImpact([51.5074, -0.1278], 'red', "Londres produce un 25% más de desechos plásticos. El impacto en la salud pública ha aumentado un 5%.");
+            nextCoords = decisionCoords[2]; // Amazonas (Deforestación)
+            updateInfo("No reciclar tiene efectos perjudiciales en la salud pública y genera más contaminación a largo plazo.");
+        } else if (currentStep === 3) {
+            environmentalPoints -= 70;
+            showResult("Has aprobado la deforestación en el Amazonas. El ecosistema sufre.");
+            generateMapImpact([-3.4653, -62.2159], 'red', "Más de 500,000 hectáreas han sido deforestadas, afectando a 200 especies en peligro.");
+            updateInfo("La deforestación en el Amazonas afecta no solo la biodiversidad, sino también el clima global.");
+        }
+        updateEnvironmentalPoints();
+        updateYear();  // Avanzar 3 años tras cada decisión
+    }
+
+    // Mostrar el resultado de la decisión
+    function showResult(resultText) {
+        document.querySelector('.campaign-info').style.display = 'none'; 
+        document.querySelector('.result-info').style.display = 'block'; 
+        document.getElementById('result-text').textContent = resultText;
+    }
+
+    // Pasar a la siguiente decisión
+    function nextDecision() {
+        if (currentStep === 1) {
+            currentStep++;
+            document.querySelector('.result-info').style.display = 'none';
+            flyToLocation(nextCoords, 5); // Realizar el flyTo a Londres tras la primera decisión
+            setTimeout(function() {
+                document.querySelector('.campaign-info').style.display = 'block';
+                updateDecisionText();
+            }, 2000);
+        } else if (currentStep === 2) {
+            currentStep++;
+            document.querySelector('.result-info').style.display = 'none';
+            flyToLocation(nextCoords, 5); // Realizar el flyTo al Amazonas tras la segunda decisión
+            setTimeout(function() {
+                document.querySelector('.campaign-info').style.display = 'block';
+                updateDecisionText();
+            }, 2000);
+        } else if (currentStep === 3) {
+            document.querySelector('.result-info').style.display = 'none';
+            showFinalSummary();  // Mostrar resumen final tras la tercera decisión
+            showConnectingLines();  // Mostrar las líneas de conexión entre decisiones
+            zoomOutToSeeAll();  // Realizar un zoom out al final para ver todo el mapa
+        }
+    }
+
+    // Mostrar las líneas de conexión entre los eventos
+    function showConnectingLines() {
+        var line1 = L.polyline([[-23.5505, -46.6333], [51.5074, -0.1278]], { color: 'yellow' }).addTo(map).setStyle({ className: 'line' });  // São Paulo a Londres
+        var line2 = L.polyline([[51.5074, -0.1278], [-3.4653, -62.2159]], { color: 'yellow' }).addTo(map).setStyle({ className: 'line' });  // Londres a Amazonas
+    }
+
+
+    // Zoom out para mostrar todo el mapa al final
+    function zoomOutToSeeAll() {
+        map.flyTo([0, 0], 2, {animate: true, duration: 3});
+    }
+
+    // Actualizar el texto de las decisiones
+    function updateDecisionText() {
+        if (currentStep === 2) {
+            document.getElementById('decision-title').textContent = "Segunda Decisión";
+            document.getElementById('decision-text').textContent = "Eres el alcalde de Londres. ¿Implementarás un plan de reciclaje a pesar del costo económico?";
+        } else if (currentStep === 3) {
+            document.getElementById('decision-title').textContent = "Tercera Decisión";
+            document.getElementById('decision-text').textContent = "Como líder comunitario en el Amazonas, debes decidir entre la deforestación y la conservación.";
+        }
+    }
+
+    // Actualizar puntos ambientales
+    function updateEnvironmentalPoints() {
+        document.getElementById('points').textContent = environmentalPoints;
+    }
+
+    // Avanzar 3 años en cada decisión
+    function updateYear() {
+        year += 3;
+        document.getElementById('year').textContent = year;
+    }
+
+    // Mostrar el resumen final tras la última decisión
+    function showFinalSummary() {
+        var finalSummary = "";
+
+        if (environmentalPoints >= 200) {
+            finalSummary = "¡Felicidades! Tomaste decisiones que ayudaron a mejorar el medio ambiente. Lograste conservar importantes áreas forestales y reducir emisiones en ciertos sectores. Aunque hubo desafíos, terminaste el juego con éxito.";
+        } else {
+            finalSummary = "Desafortunadamente, tus decisiones no fueron suficientes para proteger el medio ambiente. La deforestación y el aumento de desechos plásticos han causado daños importantes al planeta. Es necesario tomar acciones más agresivas para evitar el colapso ambiental.";
+        }
+
+        document.getElementById('final-summary').textContent = finalSummary;
+        document.querySelector('.final-verdict').style.display = 'block';  // Mostrar el veredicto final
+    }
+
+    // Función para reiniciar el juego
+    function restartGame() {
+        location.reload();  // Recargar la página para reiniciar el juego
+    }
+
+    // Mover el mapa a diferentes ubicaciones con animación
+    function flyToLocation(coords, zoomLevel) {
+        map.flyTo(coords, zoomLevel, {
+            animate: true,
+            duration: 2
+        });
+    }
+
+</script>
+
+</body>
+</html>
