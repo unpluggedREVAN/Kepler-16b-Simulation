@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgpu - earth</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+    <div id="info">
+        <a href="https://threejs.org" target="_blank" rel="noopener">three.js webgpu</a> - earth
+        <br>
+        Based on <a href="https://threejs-journey.com/lessons/earth-shaders" target="_blank" rel="noopener">Three.js Journey</a> lesson
+        <br>
+        Earth textures from <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope</a> (resized and merged)
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.152.2/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let camera, scene, renderer, controls, globe, clouds, clock;
+
+        init();
+
+        function init() {
+
+            clock = new THREE.Clock();
+
+            // Configuración de la cámara
+            camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 0.1, 100 );
+            camera.position.set( 4.5, 2, 3 );
+
+            scene = new THREE.Scene();
+
+            // Luz que simula el sol
+            const sun = new THREE.DirectionalLight( '#ffffff', 2 );
+            sun.position.set( 0, 0, 3 );
+            scene.add( sun );
+
+            // Carga de texturas
+            const textureLoader = new THREE.TextureLoader();
+            const dayTexture = textureLoader.load( './textures/planets/earth_day_4096.jpg' );
+            dayTexture.colorSpace = THREE.SRGBColorSpace;
+            dayTexture.anisotropy = 8;
+
+            const nightTexture = textureLoader.load( './textures/planets/earth_night_4096.jpg' );
+            nightTexture.colorSpace = THREE.SRGBColorSpace;
+            nightTexture.anisotropy = 8;
+
+            const bumpTexture = textureLoader.load( './textures/planets/earth_bump_roughness_clouds_4096.jpg' );
+
+            const cloudsTexture = textureLoader.load( './textures/planets/earth_clouds_4096.png' );
+            cloudsTexture.anisotropy = 8;
+            cloudsTexture.transparent = true;
+
+            // Geometría de la Tierra
+            const sphereGeometry = new THREE.SphereGeometry( 1, 64, 64 );
+
+            // Material para la Tierra (mitad día, mitad noche)
+            const globeMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    dayTexture: { value: dayTexture },
+                    nightTexture: { value: nightTexture },
+                    bumpTexture: { value: bumpTexture },
+                    lightDirection: { value: sun.position.clone().normalize() }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+
+                    void main() {
+                        vUv = uv;
+                        vNormal = normal;
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D dayTexture;
+                    uniform sampler2D nightTexture;
+                    uniform sampler2D bumpTexture;
+                    uniform vec3 lightDirection;
+
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+
+                    void main() {
+                        vec3 dayColor = texture2D(dayTexture, vUv).rgb;
+                        vec3 nightColor = texture2D(nightTexture, vUv).rgb;
+
+                        // Calcular el ángulo entre la luz y la superficie
+                        vec3 normal = normalize(vNormal);
+                        float lightFactor = dot(normal, lightDirection);
+
+                        // Usar la normal para determinar si es día o noche
+                        float mixFactor = smoothstep(-0.1, 0.1, lightFactor);
+
+                        // Interpolar entre día y noche
+                        vec3 color = mix(nightColor, dayColor, mixFactor);
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `,
+            });
+
+            globe = new THREE.Mesh( sphereGeometry, globeMaterial );
+            scene.add( globe );
+
+            // Añadir las nubes como una capa adicional
+            const cloudsMaterial = new THREE.MeshLambertMaterial({
+                map: cloudsTexture,
+                transparent: true
+            });
+
+            clouds = new THREE.Mesh(sphereGeometry, cloudsMaterial);
+            clouds.scale.set(1.01, 1.01, 1.01); // Ligeramente más grande que la esfera de la Tierra
+            scene.add(clouds);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer();
+            renderer.setPixelRatio( window.devicePixelRatio );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            document.body.appendChild( renderer.domElement );
+
+            // Controles de la cámara
+            controls = new OrbitControls( camera, renderer.domElement );
+            controls.enableDamping = true;
+
+            window.addEventListener( 'resize', onWindowResize );
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+
+        function animate() {
+            requestAnimationFrame( animate );
+
+            const delta = clock.getDelta();
+            globe.rotation.y += delta * 0.025;
+            clouds.rotation.y += delta * 0.015; // Rotación de las nubes más lenta
+
+            controls.update();
+            renderer.render( scene, camera );
+        }
+
+        animate();
+    </script>
+</body>
+</html>
