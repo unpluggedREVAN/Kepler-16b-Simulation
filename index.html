@@ -209,10 +209,15 @@
 
         // Iniciar la campaña
         function startCampaign(country) {
-            if (selectedDifficulty === 'Medio') {
-                window.location.href = 'caso1.html';  // Redirigir a caso1.html
-            } else if (selectedDifficulty === 'Difícil') {
-                window.location.href = 'caso2.html';  // Redirigir a caso2.html
+            if (country === 'Brasil' && selectedDifficulty === 'Medio') {
+                window.location.href = 'caso1.html';  // Brasil - Medio
+            } else if (country === 'Brasil' && selectedDifficulty === 'Difícil') {
+                window.location.href = 'caso2.html';  // Brasil - Difícil
+            } else if (country === 'China' && selectedDifficulty === 'Medio') {
+                window.location.href = 'caso3.html';  // China - Medio
+            } else if (country === 'China' && selectedDifficulty === 'Difícil') {
+                window.location.href = 'caso4.html';  // China - Difícil
+            }
 
             document.querySelector('.campaign-info').style.display = 'none';
 
@@ -224,7 +229,7 @@
 
             updateEnvironmentalPoints(150);
             updateYear(2025);
-        }}
+        }
 
 
         // Crear paneles dinámicamente
